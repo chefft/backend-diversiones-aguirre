@@ -1,2 +1,8 @@
 *
 !.gitignore
+!models/
+!models/.gitkeep
+!models/source/
+!models/source/.gitkeep
+!panoramas/
+!panoramas/.gitkeep

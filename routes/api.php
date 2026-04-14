@@ -24,3 +24,4 @@ Route::get('/gallery-360', [GalleryController::class, 'index']);
 // --- Rutas de Transacciones ---
 // Crear una nueva reservación (Cálculo de precio automático)
 Route::post('/reservations', [ReservationController::class, 'store']);
+Route::get('/calendario', [ReservationController::class, 'calendar']);

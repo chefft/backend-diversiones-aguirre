@@ -10,6 +10,20 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    build: {
+        chunkSizeWarningLimit: 900,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    three: ['three'],
+                    threeExtras: [
+                        'three/examples/jsm/controls/OrbitControls.js',
+                        'three/examples/jsm/loaders/GLTFLoader.js',
+                    ],
+                },
+            },
+        },
+    },
     server: {
         watch: {
             ignored: ['**/storage/framework/views/**'],

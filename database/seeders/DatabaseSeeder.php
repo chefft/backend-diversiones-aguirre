@@ -2,8 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use App\Models\Game;
+use App\Models\Gallery360;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -14,7 +15,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Crear Usuario Administrador
         User::create([
             'name' => 'Admin Aguirre',
             'email' => 'admin@diversionesaguirre.com',
@@ -22,7 +22,6 @@ class DatabaseSeeder extends Seeder
             'role' => 'admin',
         ]);
 
-        // 2. Crear Usuario Cliente de prueba
         User::create([
             'name' => 'Juan Perez',
             'email' => 'juan@gmail.com',
@@ -30,20 +29,19 @@ class DatabaseSeeder extends Seeder
             'role' => 'client',
         ]);
 
-        // 3. Crear Juegos Mecánicos de prueba
         Game::create([
             'name' => 'Rueda de la Fortuna',
             'slug' => 'rueda-fortuna',
-            'description' => 'Clásica atracción con vista panorámica de toda la feria.',
+            'description' => 'Clasica atraccion con vista panoramica de toda la feria.',
             'price_per_hour' => 1500.00,
             'model_3d_path' => 'models/rueda.glb',
             'status' => 'active',
         ]);
 
         Game::create([
-            'name' => 'Carrusel Mágico',
+            'name' => 'Carrusel Magico',
             'slug' => 'carrusel-magico',
-            'description' => 'Caballos tallados a mano con luces LED rítmicas.',
+            'description' => 'Caballos tallados a mano con luces LED ritmicas.',
             'price_per_hour' => 1200.00,
             'model_3d_path' => 'models/carrusel.glb',
             'status' => 'active',
@@ -52,10 +50,29 @@ class DatabaseSeeder extends Seeder
         Game::create([
             'name' => 'Martillo Extremo',
             'slug' => 'martillo-extremo',
-            'description' => 'Atracción de alta adrenalina con giros de 360 grados.',
+            'description' => 'Atraccion de alta adrenalina con giros de 360 grados.',
             'price_per_hour' => 2500.00,
             'model_3d_path' => 'models/martillo.glb',
             'status' => 'maintenance',
+        ]);
+
+        Gallery360::create([
+            'title' => 'Plaza Central de Feria',
+            'image_path' => 'panoramas/plaza-central.jpg',
+            'hotspots' => [
+                ['label' => 'Rueda', 'yaw' => 45, 'pitch' => 4],
+                ['label' => 'Escenario', 'yaw' => -30, 'pitch' => 2],
+            ],
+            'is_active' => true,
+        ]);
+
+        Gallery360::create([
+            'title' => 'Zona Nocturna',
+            'image_path' => 'panoramas/zona-nocturna.jpg',
+            'hotspots' => [
+                ['label' => 'Food Court', 'yaw' => 10, 'pitch' => -3],
+            ],
+            'is_active' => true,
         ]);
     }
 }
