@@ -20,6 +20,8 @@ class CalendarApiTest extends TestCase
             'calendar.availability_end' => '18:00',
             'calendar.day_window_start' => '08:00',
             'calendar.day_window_end' => '20:00',
+            'calendar.logistic_buffer_before_days' => 1,
+            'calendar.logistic_buffer_after_days' => 1,
         ]);
 
         $user = User::factory()->create();
@@ -40,18 +42,58 @@ class CalendarApiTest extends TestCase
             'status' => 'confirmed',
         ]);
 
-        $response = $this->getJson('/api/calendario?inicio=2026-04-20&fin=2026-04-20&game_id=' . $game->id . '&intervalo=60');
+        $response = $this->getJson('/api/calendario?inicio=2026-04-19&fin=2026-04-21&game_id=' . $game->id . '&intervalo=60');
 
         $response->assertOk();
-        $response->assertJsonPath('0.fecha', '2026-04-20');
+        $response->assertJsonPath('0.fecha', '2026-04-19');
+        $response->assertJsonPath('1.fecha', '2026-04-20');
+        $response->assertJsonPath('2.fecha', '2026-04-21');
 
-        $blocks = collect($response->json('0.bloques'))->keyBy(fn (array $block) => $block['inicio'] . '-' . $block['fin']);
+        $dayBefore = collect($response->json('0.bloques'))->keyBy(fn (array $block) => $block['inicio'] . '-' . $block['fin']);
+        $dayReservation = collect($response->json('1.bloques'))->keyBy(fn (array $block) => $block['inicio'] . '-' . $block['fin']);
+        $dayAfter = collect($response->json('2.bloques'))->keyBy(fn (array $block) => $block['inicio'] . '-' . $block['fin']);
 
-        $this->assertSame('no_disponible', $blocks['09:00-10:00']['estado']);
-        $this->assertSame('disponible', $blocks['10:00-11:00']['estado']);
-        $this->assertSame('ocupado', $blocks['11:00-12:00']['estado']);
-        $this->assertSame('disponible', $blocks['12:00-13:00']['estado']);
-        $this->assertSame('no_disponible', $blocks['18:00-19:00']['estado']);
+        $this->assertSame('no_disponible', $dayBefore['09:00-10:00']['estado']);
+        $this->assertSame('ocupado', $dayBefore['10:00-11:00']['estado']);
+        $this->assertSame('ocupado', $dayReservation['10:00-11:00']['estado']);
+        $this->assertSame('ocupado', $dayReservation['11:00-12:00']['estado']);
+        $this->assertSame('ocupado', $dayAfter['10:00-11:00']['estado']);
+        $this->assertSame('no_disponible', $dayAfter['18:00-19:00']['estado']);
+    }
+
+    public function test_store_rejects_reservations_inside_logistic_buffer(): void
+    {
+        config([
+            'calendar.logistic_buffer_before_days' => 1,
+            'calendar.logistic_buffer_after_days' => 1,
+        ]);
+
+        $user = User::factory()->create();
+        $game = Game::create([
+            'name' => 'Montana VR',
+            'slug' => 'montana-vr',
+            'description' => 'Prueba',
+            'price_per_hour' => 200,
+            'status' => 'active',
+        ]);
+
+        Reservation::create([
+            'user_id' => $user->id,
+            'game_id' => $game->id,
+            'start_date' => now()->addDays(3)->setTime(11, 0, 0),
+            'end_date' => now()->addDays(3)->setTime(12, 0, 0),
+            'total_price' => 200,
+            'status' => 'confirmed',
+        ]);
+
+        $response = $this->postJson('/api/reservations', [
+            'game_id' => $game->id,
+            'start_date' => now()->addDays(2)->setTime(11, 0, 0)->format('Y-m-d H:i:s'),
+            'end_date' => now()->addDays(2)->setTime(12, 0, 0)->format('Y-m-d H:i:s'),
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('message', 'Ese horario no esta disponible por reserva previa o bloqueo logistico.');
     }
 
     public function test_calendar_requires_date_range(): void

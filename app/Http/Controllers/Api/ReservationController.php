@@ -7,6 +7,7 @@ use App\Models\Game;
 use App\Models\Reservation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ReservationController extends Controller
 {
@@ -19,26 +20,32 @@ class ReservationController extends Controller
         ]);
 
         $game = Game::findOrFail($validated['game_id']);
-        $start = Carbon::parse($validated['start_date']);
-        $end = Carbon::parse($validated['end_date']);
+        $timezone = config('calendar.timezone', config('app.timezone', 'UTC'));
+        $bufferBeforeDays = (int) config('calendar.logistic_buffer_before_days', 1);
+        $bufferAfterDays = (int) config('calendar.logistic_buffer_after_days', 1);
+
+        $start = Carbon::parse($validated['start_date'], $timezone);
+        $end = Carbon::parse($validated['end_date'], $timezone);
+        $bufferedStart = $start->copy()->startOfDay()->subDays($bufferBeforeDays);
+        $bufferedEnd = $end->copy()->endOfDay()->addDays($bufferAfterDays);
 
         $hasOverlap = Reservation::query()
             ->where('game_id', $game->id)
             ->where('status', '!=', 'cancelled')
-            ->where('start_date', '<', $end)
-            ->where('end_date', '>', $start)
+            ->where('start_date', '<', $bufferedEnd)
+            ->where('end_date', '>', $bufferedStart)
             ->exists();
 
         if ($hasOverlap) {
             return response()->json([
-                'message' => 'El horario seleccionado ya esta ocupado',
+                'message' => 'Ese horario no esta disponible por reserva previa o bloqueo logistico.',
             ], 422);
         }
 
         $hours = max(1, $start->diffInHours($end));
 
         $reservation = Reservation::create([
-            'user_id' => 2,
+            'user_id' => Auth::id() ?? 2,
             'game_id' => $game->id,
             'start_date' => $start,
             'end_date' => $end,
@@ -62,6 +69,8 @@ class ReservationController extends Controller
         ]);
 
         $timezone = config('calendar.timezone', config('app.timezone', 'UTC'));
+        $bufferBeforeDays = (int) config('calendar.logistic_buffer_before_days', 1);
+        $bufferAfterDays = (int) config('calendar.logistic_buffer_after_days', 1);
         $intervalMinutes = (int) ($validated['intervalo'] ?? config('calendar.slot_minutes', 60));
 
         $from = Carbon::parse($validated['inicio'], $timezone)->startOfDay();
@@ -74,18 +83,25 @@ class ReservationController extends Controller
 
         $reservationsQuery = Reservation::query()
             ->where('status', '!=', 'cancelled')
-            ->where('start_date', '<', $to)
-            ->where('end_date', '>', $from);
+            ->where('start_date', '<', $to->copy()->addDays($bufferBeforeDays))
+            ->where('end_date', '>', $from->copy()->subDays($bufferAfterDays));
 
         if (!empty($validated['game_id'])) {
             $reservationsQuery->where('game_id', $validated['game_id']);
         }
 
         $reservationRanges = $reservationsQuery->get(['start_date', 'end_date'])->map(
-            function (Reservation $reservation) use ($timezone) {
+            function (Reservation $reservation) use ($timezone, $bufferBeforeDays, $bufferAfterDays) {
+                $reservationStart = Carbon::parse($reservation->start_date, $timezone)
+                    ->startOfDay()
+                    ->subDays($bufferBeforeDays);
+                $reservationEnd = Carbon::parse($reservation->end_date, $timezone)
+                    ->endOfDay()
+                    ->addDays($bufferAfterDays);
+
                 return [
-                    'start' => Carbon::parse($reservation->start_date, $timezone),
-                    'end' => Carbon::parse($reservation->end_date, $timezone),
+                    'start' => $reservationStart,
+                    'end' => $reservationEnd,
                 ];
             }
         );

@@ -141,6 +141,16 @@ Abrir:
 
 `http://127.0.0.1:8000`
 
+### Accesos de inicio de sesion (roles separados)
+
+- Login admin: `http://127.0.0.1:8000/login/admin`
+- Login cliente: `http://127.0.0.1:8000/login/cliente`
+
+Credenciales demo del seeder:
+
+- Admin: `admin@diversionesaguirre.com` / `admin123`
+- Cliente: `juan@gmail.com` / `cliente123`
+
 ---
 
 ## 8) Donde poner modelos `.blend`, `.glb` e imagenes 360

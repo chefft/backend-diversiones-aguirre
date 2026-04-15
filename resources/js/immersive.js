@@ -74,7 +74,7 @@ export function initImmersiveApp() {
 }
 
 async function loadInitialData({ elements, state, modelViewer, panoramaViewer }) {
-    setBookingStatus(elements, 'info', 'Cargando catalogo inmersivo...');
+    setBookingStatus(elements, 'info', 'Cargando experiencias de feria...');
 
     await Promise.all([
         loadGames({ elements, state, modelViewer }),
@@ -190,7 +190,7 @@ function wireEvents({ elements, state, modelViewer, panoramaViewer }) {
 
         elements.bookingStart.value = `${date}T${start}`;
         elements.bookingEnd.value = `${date}T${end}`;
-        setBookingStatus(elements, 'info', `Bloque seleccionado: ${date} ${start} - ${end}`);
+        setBookingStatus(elements, 'info', `Horario elegido: ${date} de ${start} a ${end}.`);
     });
 
     elements.bookingForm.addEventListener('submit', async (event) => {
@@ -224,7 +224,7 @@ function wireEvents({ elements, state, modelViewer, panoramaViewer }) {
                 body: JSON.stringify(payload),
             });
 
-            setBookingStatus(elements, 'ok', 'Reserva creada. Actualizando calendario...');
+            setBookingStatus(elements, 'ok', 'Reserva confirmada. Estamos actualizando la agenda...');
             state.selectedSlotKey = null;
             await refreshCalendar({ elements, state });
         } catch (error) {
@@ -242,11 +242,14 @@ function wireEvents({ elements, state, modelViewer, panoramaViewer }) {
 }
 
 async function loadGames({ elements, state, modelViewer }) {
-    elements.gamesList.innerHTML = '<p class="loading">Cargando juegos...</p>';
+    elements.gamesList.innerHTML = '<p class="loading">Cargando modelos...</p>';
 
     try {
         const games = await requestJson(API.games);
-        state.games = Array.isArray(games) ? games : [];
+        state.games = (Array.isArray(games) ? games : []).map((game, index) => ({
+            ...game,
+            display_name: `Modelo ${index + 1}`,
+        }));
 
         if (!state.selectedGame && state.games.length > 0) {
             state.selectedGame = state.games[0];
@@ -262,11 +265,14 @@ async function loadGames({ elements, state, modelViewer }) {
 }
 
 async function loadGalleries({ elements, state, panoramaViewer }) {
-    elements.scenesList.innerHTML = '<p class="loading">Cargando escenas 360...</p>';
+    elements.scenesList.innerHTML = '<p class="loading">Cargando recorridos...</p>';
 
     try {
         const galleries = await requestJson(API.galleries);
-        state.galleries = Array.isArray(galleries) ? galleries : [];
+        state.galleries = (Array.isArray(galleries) ? galleries : []).map((gallery, index) => ({
+            ...gallery,
+            display_name: `Recorrido ${index + 1}`,
+        }));
 
         if (!state.selectedGallery && state.galleries.length > 0) {
             state.selectedGallery = state.galleries[0];
@@ -306,7 +312,7 @@ async function refreshCalendar({ elements, state }) {
         const data = await requestJson(`${API.calendar}?${params.toString()}`);
         state.calendar = Array.isArray(data) ? data : [];
         renderCalendar(elements, state);
-        setBookingStatus(elements, 'info', 'Calendario actualizado. Elige un bloque disponible.');
+        setBookingStatus(elements, 'info', 'Horarios actualizados. Incluye bloqueo logistico de 1 dia antes y 1 despues.');
     } catch (error) {
         state.calendar = [];
         elements.calendarGrid.innerHTML = `<p class="loading">${normalizeApiError(error)}</p>`;
@@ -322,7 +328,7 @@ function switchViewerTab({ elements, state, nextTab }) {
     elements.tabPanorama.classList.toggle('active', !showModel);
     elements.modelView.classList.toggle('hidden', !showModel);
     elements.panoramaView.classList.toggle('hidden', showModel);
-    elements.viewerModeLabel.textContent = showModel ? 'Modo modelo 3D' : 'Modo panorama 360';
+    elements.viewerModeLabel.textContent = showModel ? 'Vista de modelos' : 'Vista 360';
     elements.cardboardButton.disabled = showModel;
     updateViewerOverlay({ elements, state });
 }
@@ -330,21 +336,21 @@ function switchViewerTab({ elements, state, nextTab }) {
 function updateCardboardButton(elements, state) {
     const active = state.cardboardMode;
     elements.cardboardButton.classList.toggle('active', active);
-    elements.cardboardButton.textContent = active ? 'Salir de Cardboard' : 'Activar Cardboard';
+    elements.cardboardButton.textContent = active ? 'Salir de modo gafas' : 'Activar modo gafas';
 }
 
 function updateSelectedGameLabel(elements, game) {
     if (!game) {
-        elements.selectedGameName.textContent = 'Ningun juego seleccionado';
+        elements.selectedGameName.textContent = 'Ningun modelo seleccionado';
         return;
     }
 
-    elements.selectedGameName.textContent = `${game.name} | $${Number(game.price_per_hour).toLocaleString('es-MX')}/h`;
+    elements.selectedGameName.textContent = `${game.display_name ?? game.name} | $${Number(game.price_per_hour).toLocaleString('es-MX')} por hora`;
 }
 
 function renderGames(elements, state) {
     if (state.games.length === 0) {
-        elements.gamesList.innerHTML = '<p class="loading">No hay juegos activos todavia.</p>';
+        elements.gamesList.innerHTML = '<p class="loading">Aun no hay modelos activos.</p>';
         return;
     }
 
@@ -355,9 +361,9 @@ function renderGames(elements, state) {
 
             return `
                 <article class="game-card ${active}" data-game-id="${game.id}">
-                    <h3 class="game-title">${escapeHtml(game.name)}</h3>
-                    <p class="game-meta">$${price} por hora</p>
-                    <p class="game-meta">${escapeHtml(game.description ?? 'Sin descripcion')}</p>
+                    <h3 class="game-title">${escapeHtml(game.display_name ?? game.name)}</h3>
+                    <p class="game-meta">Tarifa: $${price} por hora</p>
+                    <p class="game-meta">Ideal para eventos familiares</p>
                 </article>
             `;
         })
@@ -366,19 +372,18 @@ function renderGames(elements, state) {
 
 function renderGalleries(elements, state) {
     if (state.galleries.length === 0) {
-        elements.scenesList.innerHTML = '<p class="loading">No hay escenas 360 activas todavia.</p>';
+        elements.scenesList.innerHTML = '<p class="loading">Aun no hay recorridos 360 activos.</p>';
         return;
     }
 
     elements.scenesList.innerHTML = state.galleries
         .map((gallery) => {
             const active = state.selectedGallery?.id === gallery.id ? 'active' : '';
-            const hotspots = Array.isArray(gallery.hotspots) ? gallery.hotspots.length : 0;
 
             return `
                 <article class="scene-card ${active}" data-scene-id="${gallery.id}">
-                    <h3 class="scene-title">${escapeHtml(gallery.title)}</h3>
-                    <p class="scene-meta">${hotspots} hotspots configurados</p>
+                    <h3 class="scene-title">${escapeHtml(gallery.display_name ?? gallery.title)}</h3>
+                    <p class="scene-meta">Recorrido inmersivo de feria</p>
                 </article>
             `;
         })
@@ -414,7 +419,7 @@ function renderCalendar(elements, state) {
                                 data-start="${block.inicio}"
                                 data-end="${block.fin}">
                             <span>${block.inicio}</span>
-                            <span>${block.estado}</span>
+                            <span>${friendlyStatusLabel(block.estado)}</span>
                         </button>
                     `;
                 })
@@ -436,20 +441,20 @@ function setBookingStatus(elements, type, message) {
 }
 
 function updateViewerOverlay({ elements, state }) {
-    const gameName = state.selectedGame?.name ?? 'Sin juego seleccionado';
-    const sceneName = state.selectedGallery?.title ?? 'Sin escena 360';
-    const mode = state.activeTab === 'model' ? 'Modelo 3D' : 'Panorama 360';
+    const gameName = state.selectedGame?.display_name ?? state.selectedGame?.name ?? 'Ningun modelo';
+    const sceneName = state.selectedGallery?.display_name ?? state.selectedGallery?.title ?? 'Ningun recorrido';
+    const mode = state.activeTab === 'model' ? 'Vista de modelos' : 'Recorrido 360';
     const cardboard = state.cardboardMode
         ? state.deviceGyroEnabled
-            ? 'Cardboard + giroscopio'
-            : 'Cardboard sin giroscopio'
-        : 'Cardboard apagado';
+            ? 'Gafas activas con giroscopio'
+            : 'Gafas activas sin giroscopio'
+        : 'Modo gafas apagado';
 
     elements.viewerOverlay.innerHTML = `
         <strong>${escapeHtml(mode)}</strong><br>
-        Juego activo: ${escapeHtml(gameName)}<br>
-        Escena activa: ${escapeHtml(sceneName)}<br>
-        Estado VR: ${escapeHtml(cardboard)}
+        Modelo seleccionado: ${escapeHtml(gameName)}<br>
+        Recorrido seleccionado: ${escapeHtml(sceneName)}<br>
+        Estado del visor: ${escapeHtml(cardboard)}
     `;
 }
 
@@ -852,44 +857,46 @@ function template() {
 
         <div class="app-shell">
             <header class="hero">
-                <p class="eyebrow">Experiencia XR lista para eventos</p>
-                <h1 class="hero-title">Diversiones Aguirre Immersive Hub</h1>
+                <p class="eyebrow">Tu feria digital</p>
+                <h1 class="hero-title">Vive la experiencia de Diversiones Aguirre</h1>
                 <p class="hero-subtitle">
-                    Catalogo de atracciones en 3D, recorrido 360 y calendario de reservas en tiempo real,
-                    con modo estereoscopico para visores Cardboard.
+                    Elige tu modelo favorito, explora recorridos 360 y aparta tu fecha en minutos.
+                    Todo en una sola pantalla, facil y pensado para toda la familia.
                 </p>
                 <div class="hero-actions">
-                    <span class="chip">UI conectada a /api/games</span>
-                    <span class="chip">Calendario conectado a /api/calendario</span>
-                    <span class="chip">Reserva conectada a /api/reservations</span>
+                    <span class="chip">Modelos de feria</span>
+                    <span class="chip">Recorridos 360</span>
+                    <span class="chip">Reserva rapida</span>
+                    <a class="chip" href="/login/cliente">Login cliente</a>
+                    <a class="chip" href="/login/admin">Login admin</a>
                 </div>
             </header>
 
             <main class="grid-layout">
                 <section class="glass-panel">
                     <div class="panel-heading">
-                        <h2>Catalogo de juegos</h2>
-                        <span class="panel-hint">Selecciona un juego para el visor y la reserva</span>
+                        <h2>Modelos disponibles</h2>
+                        <span class="panel-hint">Selecciona un modelo para verlo</span>
                     </div>
                     <div id="games-list" class="catalog-list"></div>
 
                     <div class="panel-heading">
-                        <h2>Escenas 360</h2>
-                        <span class="panel-hint">Panoramas equirectangulares</span>
+                        <h2>Recorridos 360</h2>
+                        <span class="panel-hint">Explora cada ambiente de feria</span>
                     </div>
                     <div id="scenes-list" class="scene-list"></div>
                 </section>
 
                 <section class="glass-panel">
                     <div class="panel-heading">
-                        <h2>Visor inmersivo</h2>
-                        <span id="viewer-mode-label" class="panel-hint">Modo modelo 3D</span>
+                        <h2>Vista inmersiva</h2>
+                        <span id="viewer-mode-label" class="panel-hint">Vista de modelos</span>
                     </div>
 
                     <div class="viewer-toolbar">
-                        <button id="tab-model" class="btn active" type="button">Modelo 3D</button>
-                        <button id="tab-panorama" class="btn" type="button">Panorama 360</button>
-                        <button id="toggle-cardboard" class="btn warning" type="button">Activar Cardboard</button>
+                        <button id="tab-model" class="btn active" type="button">Modelos</button>
+                        <button id="tab-panorama" class="btn" type="button">Recorrido 360</button>
+                        <button id="toggle-cardboard" class="btn warning" type="button">Activar modo gafas</button>
                     </div>
 
                     <div class="viewer-stage">
@@ -901,24 +908,24 @@ function template() {
 
                 <section class="glass-panel">
                     <div class="panel-heading">
-                        <h2>Calendario y reserva</h2>
-                        <span id="selected-game-name" class="panel-hint">Ningun juego seleccionado</span>
+                        <h2>Agenda y reserva</h2>
+                        <span id="selected-game-name" class="panel-hint">Ningun modelo seleccionado</span>
                     </div>
 
                     <div class="calendar-controls">
                         <div class="field-row">
                             <div class="field">
-                                <label for="calendar-start">Inicio</label>
+                                <label for="calendar-start">Desde</label>
                                 <input id="calendar-start" type="date" required>
                             </div>
                             <div class="field">
-                                <label for="calendar-end">Fin</label>
+                                <label for="calendar-end">Hasta</label>
                                 <input id="calendar-end" type="date" required>
                             </div>
                         </div>
                         <div class="field-row">
                             <div class="field">
-                                <label for="calendar-interval">Intervalo por bloque</label>
+                                <label for="calendar-interval">Duracion del bloque</label>
                                 <select id="calendar-interval">
                                     <option value="30">30 minutos</option>
                                     <option value="60" selected>60 minutos</option>
@@ -926,43 +933,47 @@ function template() {
                                 </select>
                             </div>
                             <div class="field">
-                                <label>Zona horaria</label>
+                                <label>Horario local</label>
                                 <input value="America/Mexico_City" readonly>
                             </div>
                         </div>
-                        <button id="refresh-calendar" class="btn primary" type="button">Actualizar calendario</button>
+                        <button id="refresh-calendar" class="btn primary" type="button">Ver disponibilidad</button>
                     </div>
 
                     <div id="calendar-grid" class="calendar-scroll"></div>
 
                     <form id="booking-form" class="booking-form">
-                        <div id="booking-status" class="status-chip info">Selecciona un bloque disponible para reservar.</div>
+                        <div id="booking-status" class="status-chip info">Elige un horario libre para continuar (agenda con margen logistico).</div>
 
                         <div class="field">
-                            <label for="booking-start">Inicio de reserva</label>
+                            <label for="booking-start">Inicio</label>
                             <input id="booking-start" type="datetime-local" required>
                         </div>
                         <div class="field">
-                            <label for="booking-end">Fin de reserva</label>
+                            <label for="booking-end">Fin</label>
                             <input id="booking-end" type="datetime-local" required>
                         </div>
 
-                        <button id="book-now" class="btn primary" type="submit">Reservar ahora</button>
+                        <button id="book-now" class="btn primary" type="submit">Confirmar reserva</button>
                     </form>
                 </section>
             </main>
-
-            <section class="asset-guide">
-                <h3>Guia de assets y VR</h3>
-                <p>1) Tus archivos fuente <code>.blend</code>: <code>storage/app/public/models/source/</code></p>
-                <p>2) Exporta Blender a <code>.glb</code> y guardalo en <code>storage/app/public/models/</code></p>
-                <p>3) Tus panoramas 360 (equirectangular JPG/PNG): <code>storage/app/public/panoramas/</code></p>
-                <p>4) En DB usa rutas relativas, por ejemplo <code>models/rueda.glb</code> y <code>panoramas/plaza-central.jpg</code></p>
-                <p>5) Ejecuta <code>php artisan storage:link</code> para exponerlos como <code>/storage/...</code></p>
-            </section>
         </div>
     `;
 }
+
+function friendlyStatusLabel(status) {
+    if (status === 'disponible') {
+        return 'Libre';
+    }
+
+    if (status === 'ocupado') {
+        return 'Reservado';
+    }
+
+    return 'Bloqueado';
+}
+
 async function requestJson(url, options = {}) {
     const response = await fetch(url, {
         headers: {
